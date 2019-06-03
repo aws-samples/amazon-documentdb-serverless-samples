@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+    sam-app
+
+    Sample SAM Template for sam-app
+Parameters:
+  AutoPublishAliasName:
+    Type: String
+    Default: current
+    Description: The alias used for Auto Publishing
+  StageName:
+    Type: String
+    Default: demo
+    Description: The Lambda Function and API Gateway Stage
+  FunctionName:
+    Type: String
+    Default: DocumentDBLamndaExample
+    Description: The Lambda Function Name
+  LambdaLayerArn:
+    Type: String
+    Default: arn:aws:lambda:us-east-1:XXXXXXXXXXXX:layer:XXXXXXXXXX:1
+    Description: Copy the ARN of the Pymongodb lambda layer arn from your account
+  
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+    Function:
+        Timeout: 25
+
+
+Resources:
+
+    DocumentDbQueryFunction:
+        Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+        Properties:
+            AutoPublishAlias: !Ref AutoPublishAliasName
+            FunctionName: !Sub ${FunctionName}-${StageName}
+            CodeUri: document_db_app/
+            Handler: app.lambda_handler
+            Layers:
+              - !Sub ${LambdaLayerArn}
+            Runtime: python3.6
+            Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
+                Variables:
+                    secret_name: docdbcreds
+                    region: us-east-1
+                    db_port: 27017
+                    pem_locator: pythonpem.pem
+            Role: !GetAtt LambdFunctionIAMRole.Arn        
+            Events:
+                AnyRequest  :
+                    Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+                    Properties:
+                        Path: /documentdb
+                        Method: GET
+                        RestApiId:
+                            Ref: DocumentDBAPI
+
+            #Make sure you edit this data with your own VPC and Subnet ID's
+            VpcConfig:
+                SecurityGroupIds:
+                        - sg-xxxxxxxx
+                SubnetIds:
+                    - subnet-xxxxxxxx
+                    - subnet-xxxxxxxx
+    
+    InvokeAPILambdaPermission:
+        DependsOn : DocumentDbQueryFunction
+        Type: "AWS::Lambda::Permission"
+        Properties:
+            Action: lambda:InvokeFunction
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${DocumentDBAPI}/*"
+            FunctionName : !GetAtt DocumentDbQueryFunction.Arn
+            Principal: apigateway.amazonaws.com
+    
+    LambdFunctionIAMRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                - Effect: Allow
+                  Principal:
+                    Service:
+                    - lambda.amazonaws.com
+                  Action:
+                    - sts:AssumeRole
+                   
+            Path: "/"
+            Policies:
+            - PolicyName: root
+              PolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                - Effect: Allow
+                  Action:
+                  - logs:*
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - secretsmanager:*
+                  Resource: "*"
+    
+    DocumentDBAPI:
+        Type: 'AWS::Serverless::Api'
+        Properties:
+            StageName: !Ref StageName
+            DefinitionBody:
+                'Fn::Transform':
+                  Name: 'AWS::Include'
+                  Parameters:
+                    Location: api_swagger.yaml
+
+
+   
