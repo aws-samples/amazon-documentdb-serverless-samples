@@ -1,0 +1,660 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "This stack deploys the VPC infrastructure, Cloud9 and DocumentDB for demonstrating connectivity from serverless applications.**WARNING** This template creates an AWS resources and you will be billed for the resources used if you create a stack from this template.",
+    "Parameters": {
+        "DBClusterName": {
+            "Default": "MyDocDB",
+            "Description": "Cluster name",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "64",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*(-[a-zA-Z0-9]+)*",
+            "ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+        },
+        "DBInstanceName": {
+            "Default": "MyDocDBInstance",
+            "Description": "Instance name",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "64",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*(-[a-zA-Z0-9]+)*",
+            "ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+        },
+        "MasterUser": {
+            "NoEcho": "false",
+            "Description": "The database admin account username",
+            "Default": "docdbadmin",
+			"Type": "String",
+            "MinLength": "1",
+            "MaxLength": "16",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "Must begin with a letter and contain only alphanumeric characters."
+        },
+        "MasterPassword": {
+            "NoEcho": "true",
+            "Description": "The database admin account password",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "41",
+            "AllowedPattern": "[a-zA-Z0-9]+",
+            "ConstraintDescription": "must contain only alphanumeric characters."
+        },
+        "DBInstanceClass": {
+            "Description": "Instance class. Please refer to: https://docs.aws.amazon.com/documentdb/latest/developerguide/db-instance-classes.html#db-instance-classes-by-region",
+            "Default": "db.r4.large",
+			"Type": "String",
+            "AllowedValues": [
+                "db.r4.large",
+                "db.r4.xlarge",
+                "db.r4.2xlarge",
+                "db.r4.4xlarge",
+                "db.r4.8xlarge",
+                "db.r4.16xlarge",
+                "db.r5.large",
+                "db.r5.xlarge",
+                "db.r5.2xlarge",
+                "db.r5.4xlarge",
+                "db.r5.12xlarge",
+                "db.r5.24xlarge"
+            ],
+            "ConstraintDescription": "Instance type must be of the ones supported for the region. Please refer to: https://docs.aws.amazon.com/documentdb/latest/developerguide/db-instance-classes.html#db-instance-classes-by-region"
+        }
+    },
+	
+	"Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "Enter Amazon DocumentDB Database Configuration"
+                    },
+                    "Parameters": [
+                        "DBClusterName",
+                        "DBInstanceName",
+                        "MasterUser",
+                        "MasterPassword",
+						"DBInstanceClass"
+                    ]
+                }
+            ]
+        }
+    },
+   
+    "Mappings": {
+        "SubnetConfig": {
+            "VPC": {
+                "CIDR": "10.0.0.0/16"
+            },
+            "PublicOne": {
+                "CIDR": "10.0.0.0/24"
+            },
+            "PublicTwo": {
+                "CIDR": "10.0.1.0/24"
+            },
+            "PrivateOne": {
+                "CIDR": "10.0.2.0/24"
+            },
+            "PrivateTwo": {
+                "CIDR": "10.0.3.0/24"
+            }
+        }
+    },
+    "Resources": {
+        
+		"VPC": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "EnableDnsSupport": true,
+                "EnableDnsHostnames": true,
+                "CidrBlock": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "VPC",
+                        "CIDR"
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Sub": "DocDB-VPC-${AWS::StackName}"
+                        }
+                    }
+                ]
+            }
+        },
+        "PublicSubnetOne": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        0,
+                        {
+                            "Fn::GetAZs": {
+                                "Ref": "AWS::Region"
+                            }
+                        }
+                    ]
+                },
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "PublicOne",
+                        "CIDR"
+                    ]
+                },
+                "MapPublicIpOnLaunch": true,
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Sub": "DocDBVPCPublicOne-${AWS::StackName}"
+                        }
+                    }
+                ]
+            }
+        },
+        "PublicSubnetTwo": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        1,
+                        {
+                            "Fn::GetAZs": {
+                                "Ref": "AWS::Region"
+                            }
+                        }
+                    ]
+                },
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "PublicTwo",
+                        "CIDR"
+                    ]
+                },
+                "MapPublicIpOnLaunch": true,
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Sub": "DocDBVPCPublicTwo-${AWS::StackName}"
+                        }
+                    }
+                ]
+            }
+        },
+        "PrivateSubnetOne": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        0,
+                        {
+                            "Fn::GetAZs": {
+                                "Ref": "AWS::Region"
+                            }
+                        }
+                    ]
+                },
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "PrivateOne",
+                        "CIDR"
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Sub": "DocDBVPCPrivateOne-${AWS::StackName}"
+                        }
+                    }
+                ]
+            }
+        },
+        "PrivateSubnetTwo": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        1,
+                        {
+                            "Fn::GetAZs": {
+                                "Ref": "AWS::Region"
+                            }
+                        }
+                    ]
+                },
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "PrivateTwo",
+                        "CIDR"
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Sub": "DocDBVPCPrivateTwo-${AWS::StackName}"
+                        }
+                    }
+                ]
+            }
+        },
+        "InternetGateway": {
+            "Type": "AWS::EC2::InternetGateway"
+        },
+        "GatewayAttachement": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "InternetGatewayId": {
+                    "Ref": "InternetGateway"
+                }
+            }
+        },
+        "PublicRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                }
+            }
+        },
+        "PublicRoute": {
+            "Type": "AWS::EC2::Route",
+            "DependsOn": "GatewayAttachement",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "PublicRouteTable"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "InternetGateway"
+                }
+            }
+        },
+        "PublicSubnetOneRouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "PublicSubnetOne"
+                },
+                "RouteTableId": {
+                    "Ref": "PublicRouteTable"
+                }
+            }
+        },
+        "PublicSubnetTwoRouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "PublicSubnetTwo"
+                },
+                "RouteTableId": {
+                    "Ref": "PublicRouteTable"
+                }
+            }
+        },
+        "NatGatewayOneAttachment": {
+            "Type": "AWS::EC2::EIP",
+            "DependsOn": "GatewayAttachement",
+            "Properties": {
+                "Domain": "vpc"
+            }
+        },
+        "NatGatewayTwoAttachment": {
+            "Type": "AWS::EC2::EIP",
+            "DependsOn": "GatewayAttachement",
+            "Properties": {
+                "Domain": "vpc"
+            }
+        },
+        "NatGatewayOne": {
+            "Type": "AWS::EC2::NatGateway",
+            "Properties": {
+                "AllocationId": {
+                    "Fn::GetAtt": [
+                        "NatGatewayOneAttachment",
+                        "AllocationId"
+                    ]
+                },
+                "SubnetId": {
+                    "Ref": "PublicSubnetOne"
+                }
+            }
+        },
+        "NatGatewayTwo": {
+            "Type": "AWS::EC2::NatGateway",
+            "Properties": {
+                "AllocationId": {
+                    "Fn::GetAtt": [
+                        "NatGatewayTwoAttachment",
+                        "AllocationId"
+                    ]
+                },
+                "SubnetId": {
+                    "Ref": "PublicSubnetTwo"
+                }
+            }
+        },
+        "PrivateRouteTableOne": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                }
+            }
+        },
+        "PrivateRouteOne": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "PrivateRouteTableOne"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "NatGatewayId": {
+                    "Ref": "NatGatewayOne"
+                }
+            }
+        },
+        "PrivateRouteTableOneAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "PrivateRouteTableOne"
+                },
+                "SubnetId": {
+                    "Ref": "PrivateSubnetOne"
+                }
+            }
+        },
+        "PrivateRouteTableTwo": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                }
+            }
+        },
+        "PrivateRouteTwo": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "PrivateRouteTableTwo"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "NatGatewayId": {
+                    "Ref": "NatGatewayTwo"
+                }
+            }
+        },
+        "PrivateRouteTableTwoAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "PrivateRouteTableTwo"
+                },
+                "SubnetId": {
+                    "Ref": "PrivateSubnetTwo"
+                }
+            }
+        },
+       
+	   "DocumentDBSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupName": {
+                    "Fn::Sub": "SecurityGroup-${AWS::StackName}"
+                },
+                "GroupDescription": "Allow access from VPC",
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "27017",
+                        "ToPort": "27017",
+                        "CidrIp": "10.0.0.0/16"
+                    }
+                   
+                ]
+            }
+        },	   
+	   	
+		"VPCEndpointSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupName": {
+                    "Fn::Sub": "SecurityGroup-${AWS::StackName}"
+                },
+                "GroupDescription": "Allow HTTPS access from VPC to VPC Endpoint",
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "443",
+                        "ToPort": "443",
+                        "CidrIp": "10.0.0.0/16"
+                    }
+                   
+                ]
+            }
+        },	   
+		
+		
+        "Cloud9Environment": {
+            "Type": "AWS::Cloud9::EnvironmentEC2",
+            "Properties": {
+                "AutomaticStopTimeMinutes": 30,
+                "InstanceType": "t2.small",
+                "Name": {
+                    "Fn::Sub": "Project-${AWS::StackName}"
+                },
+                "SubnetId": {
+                    "Ref": "PublicSubnetOne"
+                }
+            }
+        },
+		
+		"DocDBSubnetGroup": {
+            "Type": "AWS::DocDB::DBSubnetGroup",
+            "Properties": {
+                "DBSubnetGroupDescription": "Subnet group for DocumentDB",
+                "SubnetIds": [
+                    {
+                        "Ref": "PrivateSubnetOne"
+                    },
+                    {
+                        "Ref": "PrivateSubnetTwo"
+                    }
+                ]
+            }
+        },
+		
+			"DBCluster": {
+            "Type": "AWS::DocDB::DBCluster",
+            "DeletionPolicy": "Delete",
+            "Properties": {
+                "DBClusterIdentifier": {
+                    "Ref": "DBClusterName"
+                },
+				"DBSubnetGroupName" :
+				{
+				"Ref": "DocDBSubnetGroup"
+				},
+				"VpcSecurityGroupIds" :
+				[{ "Fn::GetAtt": [ "DocumentDBSecurityGroup"  , "GroupId" ] } ],
+                "MasterUsername": {
+                    "Ref": "MasterUser"
+                },
+                "MasterUserPassword": {
+                    "Ref": "MasterPassword"
+                }
+            }
+        },
+        "DBInstance": {
+            "Type": "AWS::DocDB::DBInstance",
+            "Properties": {
+                "DBClusterIdentifier": {
+                    "Ref": "DBCluster"
+                },
+                "DBInstanceIdentifier": {
+                    "Ref": "DBInstanceName"
+                },
+                "DBInstanceClass": {
+                    "Ref": "DBInstanceClass"
+                }
+            },
+            "DependsOn": "DBCluster"
+        },
+		
+		"SecretsManagerVPCEndpoint": {
+            "Type": "AWS::EC2::VPCEndpoint",
+            "Properties": {
+                "VpcEndpointType": "Interface",
+                "PrivateDnsEnabled": true,
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "SubnetIds": [
+                    {
+                        "Ref": "PrivateSubnetOne"
+                    },
+                    {
+                        "Ref": "PrivateSubnetTwo"
+                    }
+                    
+                ],
+                "SecurityGroupIds": [
+                    {
+                        "Ref": "VPCEndpointSecurityGroup"
+                    }
+                ],
+                "ServiceName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "com.amazonaws.",
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            ".secretsmanager"
+                        ]
+                    ]
+                }
+            }
+        }
+		
+		
+		
+  },
+    "Outputs": {
+        "VPCid" : { "Value" : {
+           "Fn::GetAtt" : [ "PrivateSubnetOne" , "VpcId" ] }
+        },
+        
+         "SecurityGroupId" : { "Value" : {
+           "Fn::GetAtt" : [ "DocumentDBSecurityGroup" , "GroupId" ] }
+        },
+        
+		"PrivateSubnet1" : { "Value" : {
+           "Ref": "PrivateSubnetOne"  }
+        },
+        
+		"PrivateSubnet2" : { "Value" : {
+           "Ref": "PrivateSubnetTwo"  }
+        },
+        
+		"Cloud9Env": {
+            "Value": {
+                "Fn::Join": [
+                    "",
+                    [
+                        "https://",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        ".console.aws.amazon.com/cloud9/home/",
+                        
+                        "?region=",
+                        {
+                            "Ref": "AWS::Region"
+                        }
+                    ]
+                ]
+            }
+        },
+    "ClusterId": {
+            "Value": {
+                "Ref": "DBCluster"
+            }
+        },
+        "ClusterEndpoint": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "DBCluster",
+                    "Endpoint"
+                ]
+            }
+        },
+        "ClusterReadEndpoint": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "DBCluster",
+                    "ReadEndpoint"
+                ]
+            }
+        },
+        "ClusterPort": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "DBCluster",
+                    "Port"
+                ]
+            }
+        },
+        "InstanceId": {
+            "Value": {
+                "Ref": "DBInstance"
+            }
+        },
+        "InstancePort": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "DBInstance",
+                    "Port"
+                ]
+            }
+        },
+        "InstanceEndpoint": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "DBInstance",
+                    "Endpoint"
+                ]
+            }
+        }
+   } 
+}
