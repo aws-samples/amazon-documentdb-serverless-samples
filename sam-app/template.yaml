@@ -11,7 +11,7 @@ Parameters:
     Description: The alias used for Auto Publishing
   StageName:
     Type: String
-    Default: demo
+    Default: docdbdemo
     Description: The Lambda Function and API Gateway Stage
   FunctionName:
     Type: String
@@ -19,8 +19,12 @@ Parameters:
     Description: The Lambda Function Name
   LambdaLayerArn:
     Type: String
-    Default: arn:aws:lambda:us-east-1:XXXXXXXXXXXX:layer:XXXXXXXXXX:1
+    Default: arn name of the lambda layer
     Description: Copy the ARN of the Pymongodb lambda layer arn from your account
+  SecretManagerName
+    Type: String
+    Default: docdbcreds
+    Description: Enter the name you have given for the document db secrets manager
   
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
@@ -43,10 +47,10 @@ Resources:
             Runtime: python3.6
             Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
                 Variables:
-                    secret_name: docdbcreds
+                    secret_name: !Ref SecretManagerName
                     region: us-east-1
                     db_port: 27017
-                    pem_locator: pythonpem.pem
+                    pem_locator: rds-combined-ca-bundle.pem
             Role: !GetAtt LambdFunctionIAMRole.Arn        
             Events:
                 AnyRequest  :

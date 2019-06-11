@@ -60,7 +60,7 @@ def lambda_handler(event, context):
             
     try:
         GDELT_DB_LOC = db_client['GDELT_DB']
-        GDELT_DB_COLL = GDELT_DB_LOC['GDELT__COLL']
+        GDELT_DB_COLL = GDELT_DB_LOC['GDELT_COLL']
         if querylower == "most talked event" :
             queryString = GDELT_DB_COLL.find_one(sort=[("NumMentions", -1)])
             topicval = queryString["SOURCEURL"]

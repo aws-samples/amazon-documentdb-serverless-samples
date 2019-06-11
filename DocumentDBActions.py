@@ -39,18 +39,12 @@ def queryTest():
     GDELT_DB_LOC = db_client['GDELT_DB']
     GDELT_DB_COLL = GDELT_DB_LOC['GDELT__COLL']
     
-    # Use the Find query to pull the record with an ID
-    #queryString = GDELT_DB_COLL.find({"SOURCEURL":"https://thenextweb.com/podium/2019/04/25/an-entrepreneurs-guide-to-sacramentos-startup-scene/"})
-    #db.collection.find().sort({age:-1}).limit(1)
-    #working Avengers topic
-    #queryString = GDELT_DB_COLL.find({"SOURCEURL": {"$regex": u"avengers"}})
-    #results_count = queryString.count()
-    # Assuming an Arrya has been returned
+    queryString = GDELT_DB_COLL.find()
     
-    queryString = GDELT_DB_COLL.find_one(sort=[("NumMentions", -1)])["NumMentions"]
-    
-    print(queryString)
-    
+    # Assuming an Arrya has been returned print the first string and quit
+    for rowStr in queryString:
+        print(rowStr)
+        break
 
 def insertData(insert_list):
     #Create the GDELT Collection if not there

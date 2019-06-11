@@ -1,8 +1,7 @@
-## Building serverless applications on Amazon DocumentDB
-
-This repository contains the code, Cloud Formation template and SAM application for setting up resouurces demonstrating serverless connectivity to DocumentDB.
-
-Please refer to the blog <TODO> Provide Link.
-## License Summary
-
-This sample code is made available under the MIT-0 license. See the LICENSE file.
+This Folder contains code that helps with the following
+CloudFormation template that can help create the DocumentDB, Cloud9 environment
+Load GDELT Data for a given date into Document DB
+Deploy Lambda Layer for Python Mongodb driver
+Deploy the Lambda Query function 
+Deploy API that integrate with the Lambda Function
+Test this either via API GW Testing console(for Post) or a Browser (for GET)
